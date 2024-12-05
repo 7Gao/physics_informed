@@ -113,6 +113,40 @@ class BurgersLoader(object):
             loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
         return loader
 
+class LWRLoader(object):
+    def __init__(self, datapath, nx=100, nt=100):
+
+        data = np.load(datapath)
+        self.s = nx
+        self.T = nt + 1
+
+        self.x_data = data['rho_inits']
+        self.y_data = data['rho_results']
+
+
+    def make_loader(self, n_sample, batch_size, start=0, train=True):
+        Xs = self.x_data[start:start + n_sample]
+        ys = self.y_data[start:start + n_sample]
+
+        Xs = Xs.astype(np.float32)
+        ys = ys.astype(np.float32)
+
+        Xs = torch.from_numpy(Xs)
+        ys = torch.from_numpy(ys)
+
+        gridx = torch.tensor(np.linspace(0, 1, self.s + 1)[:-1], dtype=torch.float)
+        gridt = torch.tensor(np.linspace(0, 1, self.T), dtype=torch.float)
+
+        gridx = gridx.reshape(1, 1, self.s)
+        gridt = gridt.reshape(1, self.T, 1)
+
+        Xs = Xs.reshape(n_sample, 1, self.s).repeat([1, self.T, 1])
+        Xs = torch.stack([Xs, gridx.repeat([n_sample, self.T, 1]), gridt.repeat([n_sample, 1, self.s])], dim=3)
+        dataset = torch.utils.data.TensorDataset(Xs, ys)
+
+        loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=train)
+
+        return loader
 
 class NSLoader(object):
     def __init__(self, datapath1,

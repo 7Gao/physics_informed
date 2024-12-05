@@ -1,10 +1,10 @@
 data:
   name: 'Darcy'
-  datapath: 'data/burgers.mat'
-  total_num: 1000
-  offset: 800
+  datapath: 'data/pwc_ic_xt_e-3.npz'
+  total_num: 1200
+  offset: 1000
   n_sample: 200
-  nx: 128
+  nx: 100
   nt: 100
   sub: 1
   sub_t: 1
@@ -17,9 +17,8 @@ model:
   act: gelu
 
 test:
-  batchsize: 1
-  ckpt: 'checkpoints/burgers-FDM/burgers-pretrain-eqn.pt'
-  # ckpt: 'checkpoints/burgers-FDM/burgers-pretrain-eqn_100.pt'
+  batchsize: 200
+  ckpt: 'checkpoints/LWR-FDM/LWR-pretrain-eqn.pt'
 
 log:
   project: 'PINO-burgers-test'

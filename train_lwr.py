@@ -4,18 +4,17 @@ import yaml
 import torch
 from models import FNO2d
 from train_utils import Adam
-from train_utils.datasets import BurgersLoader
-from train_utils.train_2d import train_2d_burger
-from train_utils.eval_2d import eval_burgers
+from train_utils.datasets import LWRLoader
+from train_utils.train_2d import train_2d_LWR
+from train_utils.eval_2d import eval_LWR
 
 
 def run(args, config):
     # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     device = torch.device('cpu')
     data_config = config['data']
-    dataset = BurgersLoader(data_config['datapath'],
-                            nx=data_config['nx'], nt=data_config['nt'],
-                            sub=data_config['sub'], sub_t=data_config['sub_t'], new=True)
+    dataset = LWRLoader(data_config['datapath'],
+                            nx=data_config['nx'], nt=data_config['nt'])
     train_loader = dataset.make_loader(n_sample=data_config['n_sample'],
                                        batch_size=config['train']['batchsize'],
                                        start=data_config['offset'])
@@ -36,9 +35,8 @@ def run(args, config):
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
                                                      milestones=config['train']['milestones'],
                                                      gamma=config['train']['scheduler_gamma'])
-    train_2d_burger(model,
+    train_2d_LWR(model,
                     train_loader,
-                    dataset.v,
                     optimizer,
                     scheduler,
                     config,
@@ -52,12 +50,12 @@ def test(config):
     # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     device = torch.device('cpu')
     data_config = config['data']
-    dataset = BurgersLoader(data_config['datapath'],
-                            nx=data_config['nx'], nt=data_config['nt'],
-                            sub=data_config['sub'], sub_t=data_config['sub_t'], new=True)
+    dataset = LWRLoader(data_config['datapath'],
+                            nx=data_config['nx'], nt=data_config['nt'])
     dataloader = dataset.make_loader(n_sample=data_config['n_sample'],
                                      batch_size=config['test']['batchsize'],
-                                     start=data_config['offset'])
+                                     start=data_config['offset'],
+                                     train=False)
 
     model = FNO2d(modes1=config['model']['modes1'],
                   modes2=config['model']['modes2'],
@@ -70,21 +68,20 @@ def test(config):
         ckpt = torch.load(ckpt_path)
         model.load_state_dict(ckpt['model'])
         print('Weights loaded from %s' % ckpt_path)
-    # eval_burgers(model, dataloader, dataset.v, config, device)
-        
+    # eval_LWR(model, dataloader, config, device)
+
+    import numpy as np
     model.eval()
-    x, y = next(iter(dataloader))
 
-    y_pred = model(x).reshape(y.shape)
+    for x, y in dataloader:
+        x, y = x.to(device), y.to(device)
+        pred = model(x).reshape(y.shape)
+        y_true = y.detach().cpu().numpy()
+        y_pred = pred.detach().cpu().numpy()
 
-    import matplotlib.pyplot as plt
-
-    plt.plot(y[0, -1, :].detach().numpy(), label='True')
-    plt.plot(y_pred[0, -1, :].detach().numpy(), label='Pred')
-    plt.legend()
-    # plt.ylim(0, 1)
-    plt.show()
-
+    np.savez("PINO_LWR.npz", y_pred=y_pred, y_true=y_true)
+    
+    
 
 
 if __name__ == '__main__':

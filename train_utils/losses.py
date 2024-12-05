@@ -243,6 +243,50 @@ def PINO_loss(u, u0, v):
     #                       (2/(nx)), (u[:, :, 0] - u[:, :, -2])/(2/(nx)))
     return loss_u, loss_f
 
+def FDM_LWR(u, Dx=1, Dt=0.5):
+    batchsize = u.size(0)
+    nt = u.size(1)
+    nx = u.size(2)
+
+    u = u.reshape(batchsize, nt, nx)
+    dt = Dt / (nt-1)
+    dx = Dx / (nx)
+
+    flux = u*(1 - u)
+
+    u_h = torch.fft.fft(u, dim=2)
+    flux_h = torch.fft.fft(flux, dim=2)
+    # Wavenumbers in y-direction
+    k_max = nx//2
+    k_x = torch.cat((torch.arange(start=0, end=k_max, step=1, device=u.device),
+                     torch.arange(start=-k_max, end=0, step=1, device=u.device)), 0).reshape(1,1,nx)
+    ux_h = 2j *np.pi*k_x*u_h
+    fluxx_h = 2j *np.pi*k_x*flux_h
+    ux = torch.fft.irfft(ux_h[:, :, :k_max+1], dim=2, n=nx)
+    fluxx = torch.fft.irfft(fluxx_h[:, :, :k_max+1], dim=2, n=nx)
+    ut = (u[:, 2:, :] - u[:, :-2, :]) / (2 * dt)
+    Du = ut + (fluxx)[:,1:-1,:]
+    return Du
+
+def PINO_loss_lwr(u, u0):
+
+    batchsize = u.size(0)
+    nt = u.size(1)
+    nx = u.size(2)
+
+    u = u.reshape(batchsize, nt, nx)
+    # lploss = LpLoss(size_average=True)
+
+    index_t = torch.zeros(nx,).long()
+    index_x = torch.tensor(range(nx)).long()
+    boundary_u = u[:, index_t, index_x]
+    loss_u = F.mse_loss(boundary_u, u0)
+
+    Du = FDM_LWR(u)[:, :, :]
+    f = torch.zeros(Du.shape, device=u.device)
+    loss_f = F.mse_loss(Du, f)
+
+    return loss_u, loss_f
 
 def PINO_loss3d(u, u0, forcing, v=1/40, t_interval=1.0):
     batchsize = u.size(0)
